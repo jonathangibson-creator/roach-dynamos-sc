@@ -2,101 +2,70 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 
-# --- Page Config ---
-st.set_page_config(page_title="Roach Dynamos S&C", page_icon="⚽", layout="wide")
-
-# --- Custom CSS Styling ---
+# --- Page Config & Styling ---
+st.set_page_config(page_title="Roach Dynamos Diary", layout="wide")
 st.markdown("""
     <style>
     .stApp { background-color: #1a1a1a; color: #FFFFFF; }
-    p, div, li, span, label { color: #FFFFFF !important; }
     h1, h2, h3 { color: #FF8C00 !important; }
-    div.stButton > button { background-color: #FF8C00; color: #000000; font-weight: bold; border-radius: 8px; border: none; }
-    div.stButton > button:hover { background-color: #FF4500; color: white; }
-    .stProgress > div > div > div { background-color: #FF69B4; }
-    div.stExpander { border: 1px solid #FF8C00; background-color: #262626; color: #ffffff !important; }
     .card { background-color:#262626; padding:15px; border-radius:10px; border-left: 5px solid #FF8C00; margin-bottom: 10px; }
+    div.stButton > button { background-color: #FF8C00; color: #000000; font-weight: bold; border-radius: 8px; border: none; }
     </style>
-    """, unsafe_allow_html=True)
+""", unsafe_allow_html=True)
 
-# --- Initial Setup ---
-AUTHORIZED_USERS = ["Player1", "Player2", "Coach1"]
+# --- App State ---
+if 'logs' not in st.session_state: st.session_state.logs = pd.DataFrame(columns=["Player", "Date", "Reflection", "Coach_Feedback"])
+if 'milestones' not in st.session_state: st.session_state.milestones = pd.DataFrame(columns=["Player", "Moment", "Date"])
+
+# --- Authentication ---
 if 'authenticated' not in st.session_state: st.session_state.authenticated = False
-if 'logs' not in st.session_state: st.session_state.logs = pd.DataFrame(columns=["Player", "Date", "Exercise", "Effort", "Reflection", "Coach_Feedback", "Flagged"])
-if 'milestones' not in st.session_state: st.session_state.milestones = pd.DataFrame(columns=["Player", "Test_Name", "Result", "Date"])
-
-# --- Login ---
 if not st.session_state.authenticated:
-    st.title("⚽ Roach Dynamos S&C Portal")
-    name = st.text_input("Enter your registered name:")
+    name = st.text_input("Enter your name:")
     if st.button("Log In"):
-        if name in AUTHORIZED_USERS:
-            st.session_state.authenticated = True
-            st.session_state.user_name = name
-            st.rerun()
-        else: st.error("Name not recognized.")
+        st.session_state.authenticated = True
+        st.session_state.user_name = name
+        st.rerun()
     st.stop()
 
-# --- Sidebar ---
-# st.sidebar.image("logo.png", use_container_width=True) # Uncomment if logo file is uploaded
+# --- Main Interface ---
 st.sidebar.title(f"Hi, {st.session_state.user_name}!")
-if st.sidebar.button("Log Out"):
-    st.session_state.authenticated = False
-    st.rerun()
-page = st.sidebar.radio("Navigate:", ["My Dashboard", "Milestone Tracking", "Technique Library", "Coach's View"])
+page = st.sidebar.radio("Navigation:", ["📖 My Training Diary", "⭐ My Best Moments", "📚 Technique Library", "📋 Coach's Dashboard"])
 
-# --- My Dashboard ---
-if page == "My Dashboard":
-    st.title(f"Welcome, {st.session_state.user_name}!")
-    week = st.select_slider("Select Phase:", options=["Week 1-2: Foundations", "Week 3-4: Integration", "Week 5-6: Expression"])
-    c1, c2 = st.columns(2)
-    with c1: st.info(f"**Current Focus:** {week}")
-    with c2: st.info("**Goal:** Master technique & build consistency.")
-
-    st.subheader("Your Progress Calendar")
-    user_logs = st.session_state.logs[st.session_state.logs['Player'] == st.session_state.user_name]
-    if not user_logs.empty:
-        for _, row in user_logs.tail(3).iterrows():
-            st.markdown(f'<div class="card"><strong>{row["Date"]}</strong><br>{row["Exercise"]} - Effort: {row["Effort"]}/10</div>', unsafe_allow_html=True)
+# --- Diary Page ---
+if page == "📖 My Training Diary":
+    st.title(f"📖 {st.session_state.user_name}'s Diary")
+    reflection = st.text_area("How are you feeling about your training today?")
+    if st.button("Save Diary Entry"):
+        st.session_state.logs = pd.concat([st.session_state.logs, pd.DataFrame([{
+            "Player": st.session_state.user_name, "Date": datetime.now().strftime("%B %d, %Y"), 
+            "Reflection": reflection, "Coach_Feedback": "No feedback yet."}])], ignore_index=True)
+        st.success("Entry saved!")
     
-    st.subheader("➕ Log Today's Effort")
-    focus = st.selectbox("Focus:", ["Mobility", "Core Stability", "Ladder Drills", "Speed/Agility"])
-    effort = st.slider("Effort level (1-10):", 1, 10, 8)
-    reflection = st.text_area("Reflection:")
-    if st.button("Submit Session"):
-        st.session_state.logs = pd.concat([st.session_state.logs, pd.DataFrame([{"Player": st.session_state.user_name, "Date": datetime.now().date(), "Exercise": focus, "Effort": effort, "Reflection": reflection, "Coach_Feedback": "Pending...", "Flagged": False}])], ignore_index=True)
-        st.success("Session saved! 🚀")
+    st.subheader("Your Entries")
+    for _, row in st.session_state.logs[st.session_state.logs['Player'] == st.session_state.user_name].tail(5).iterrows():
+        st.markdown(f'<div class="card"><strong>{row["Date"]}</strong><br>{row["Reflection"]}<br><br><em>Coach: {row["Coach_Feedback"]}</em></div>', unsafe_allow_html=True)
 
-# --- Milestone Tracking ---
-elif page == "Milestone Tracking":
-    st.title("📈 Milestone Tracker")
-    user_data = st.session_state.milestones[st.session_state.milestones['Player'] == st.session_state.user_name]
-    if not user_data.empty:
-        last = user_data.iloc[-1]
-        target = round(last['Result'] * 0.95, 2) if "Sprint" in last['Test_Name'] else round(last['Result'] * 1.07, 1)
-        st.write(f"💡 Recommended Goal: **{target}**")
-        if st.checkbox("Set custom goal?"): target = st.number_input("Goal:")
-    test = st.selectbox("Test:", ["Plank (seconds)", "10m Sprint (seconds)", "Jump Height (cm)"])
-    val = st.number_input("Result:")
-    if st.button("Update PB"):
-        st.session_state.milestones = pd.concat([st.session_state.milestones, pd.DataFrame([{"Player": st.session_state.user_name, "Test_Name": test, "Result": val, "Date": datetime.now().date()}])], ignore_index=True)
-        st.success("PB recorded!")
+# --- Milestones Page ---
+elif page == "⭐ My Best Moments":
+    st.title("⭐ My Best Moments")
+    moment = st.text_input("What is a moment you're proud of?")
+    if st.button("Save Memory"):
+        st.session_state.milestones = pd.concat([st.session_state.milestones, pd.DataFrame([{"Player": st.session_state.user_name, "Moment": moment, "Date": datetime.now().strftime("%d/%m/%Y")}])], ignore_index=True)
+    for _, row in st.session_state.milestones[st.session_state.milestones['Player'] == st.session_state.user_name].iterrows():
+        st.info(f"{row['Date']}: {row['Moment']}")
 
 # --- Technique Library ---
-elif page == "Technique Library":
+elif page == "📚 Technique Library":
     st.title("📚 Technique Library")
-    with st.expander("Plank Form"): st.write("Keep body in a straight line. Squeeze glutes!")
-    with st.expander("Sprint Form"): st.write("Drive arms hard. Stay low!")
+    with st.expander("Plank Tips"): st.write("Keep your core braced tight!")
+    with st.expander("Sprint Tips"): st.write("Fast arms = fast feet!")
 
-# --- Coach's View ---
-elif page == "Coach's View":
-    if st.text_input("Coach Password:", type="password") == "Dynamos2026":
+# --- Coach's Dashboard ---
+elif page == "📋 Coach's Dashboard":
+    if st.text_input("Password:", type="password") == "Dynamos2026":
         st.dataframe(st.session_state.logs)
-        idx = st.number_input("Row Index:", 0, len(st.session_state.logs)-1)
-        fb = st.text_area("Feedback:")
-        flag = st.checkbox("Flag for discussion?")
-        if st.button("Update Entry"):
+        idx = st.number_input("Entry Index:", min_value=0, max_value=len(st.session_state.logs)-1)
+        fb = st.text_area("Coach's Feedback:")
+        if st.button("Update Diary"):
             st.session_state.logs.at[idx, 'Coach_Feedback'] = fb
-            st.session_state.logs.at[idx, 'Flagged'] = flag
-            st.success("Updated!")
-    else: st.warning("Access restricted.")
+            st.success("Feedback updated!")
